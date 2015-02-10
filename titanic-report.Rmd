@@ -1,0 +1,127 @@
+---
+title: "Kaggle Titanic Competition - Relatório"
+author: "Lilia Sampaio"
+date: "February 9, 2015"
+output: html_document
+---
+
+###Importando datasets
+
+Para essa análise dois datasets foram fornecidos, um de treino chamado *train* e o que utilizaremos para testar nosso modelo de predição chamado *test*.
+
+```{r}
+train <- read.csv("train.csv")
+test <- read.csv("test.csv")
+```
+
+###Como os dados estão estruturados?
+
+Os dados de treino são os que utilizaremos como base para realizar nossas predições. Nesse caso, é importante saber como eles estão estruturados e quais as variáveis disponíveis nesse conjunto de daods, para que assim possamos decidir o que utilizar para criar um bom modelo. 
+
+```{r}
+str(train)
+```
+
+As informações nos dizem que 891 observações estão disponíveis, cada uma composta por 13 variáveis, sendo elas *Name*, *Sex*, *Age*, *Fare*, *Survived*, entre outras relativas aos passageiros do Titanic. Também vemos que algumas variáveis são definidas como *int* e outras como *Factor*. Deixaremos o dataset desta forma já que para análises simples nenhuma modificação nesse sentido se faz necessária.
+
+###Análise dos dados
+
+Partimos então para um entendimento básico dos dados, e a partir de consultas e visualizações simples sobre os mesmo, conseguimos ver o que eles nos dizem em relação à sobrevivência ou não dos passageiros considerados.
+
+**Sobrevivência X Óbito** *(0 para faleceu, 1 para sobreviveu)*
+
+Total de pessoas que não sobreviveram X sobreviveram
+```{r}
+table(train$Survived)
+```
+
+Porcentagem de pessoas que não sobreviveram X sobreviveram
+```{r}
+prop.table(table(train$Survived))
+```
+
+```{r, echo=FALSE}
+survived_prop <- prop.table(table(train$Survived))
+barplot(survived_prop, col="cyan4", ylim=c(0:1), space=0.5, xlab="0 para obito e 1 para sobreviveu")
+```
+
+Sem a utilização dos conceitos de Árvores de Decisão, a partir dessa análise simples, onde apenas ~38% dos passageiros sobreviveu, podemos considerar no nosso conjunto *test* que nenhum dos passageiros sobreviveu. Submetendo esse conjunto de teste ao Kaggle, temos uma precisão de 0.62679.
+
+![alt text][id1]
+
+**Sobrevivência X Óbito - Homem X Mulher** *(0 para faleceu, 1 para sobreviveu)*
+
+Para tentar melhorar a precisão da nossa precisão, outra variável que pode fazer a diferença é a referente ao sexo dos passageiros. Nesse caso, podemos agora relacionar os passageiros que sobreviveram com o seu sexo para saber se um sexo prevalece sobre o outro, por exemplo.
+
+Porcentagem de homens e mulheres que sobreviveram X não sobreviveram
+```{r}
+prop.table(table(train$Sex, train$Survived),1)
+```
+
+```{r, echo=FALSE}
+survived_men_women <- prop.table(table(train$Sex, train$Survived),1)
+barplot(survived_men_women, legend = rownames(survived_men_women), beside=TRUE, col=c("chocolate2","cyan4"), ylim=c(0:1))
+```
+
+Dessa vez, ainda sem a utilização dos conceitos de Árvores de Decisão, a partir dessa análise simples, onde apenas ~75% dos passageiros que sobreviveram era mulheres, podemos considerar no nosso conjunto *test* que para as mulheres, todas sobreviveram. Submetendo esse conjunto de teste ao Kaggle, teríamos uma precisão de 0.76555.
+
+![alt text][id2]
+
+###Análise de atributos secundários
+
+**Análise da idade dos passageiros**
+
+Seguindo essa linha, várias outras variáveis podem ser consideradas e analisadas na tentativa de aumentar a precisão da predição sendo realizada. Por exemplo, podemos considerar a disposição dos passageiros quanto a idade do mesmos. Um sumário dos dados nos mostra que a idade mais alta encontrada foi 80 anos, a menor 4 meses, e uma média de 29 anos, como podemos ver abaixo.
+
+```{r}
+summary(train$Age)
+```
+
+Ainda podemos criar atributos secundários a partir de existentes, como por exemplo uma variável *Child* para ver se as crianças sobreviveram a uma taxa maior do que os adultos, por exemplo.
+
+Adicionando variável *Child*:
+
+```{r}
+train$Child <- 0
+train$Child[train$Age < 18] <- 1
+```
+
+A partir disso, podemos calcular a proporção de passageiros que sobreviveu, e era adulto ou criança, homem ou mulher, como vemos abaixo *(0 para adulto, 1 para criança)*:
+
+```{r}
+aggregate(Survived ~ Child + Sex, data=train, FUN=sum)
+aggregate(Survived ~ Child + Sex, data=train, FUN=function(x) {sum(x)/length(x)})
+```
+
+Além dessas, várias outras caracteristicas e variáveis podem ser extraídas dos dados e consideradas na predição, como veremos a seguir utilizando uma árvore de decisão.
+
+###Criando Árvore de Decisão
+
+Usar uma árvore de decisão é uma maneira de automatizar os processos anteriores para a obtenção de uma predição com mais acurácia. Nesse caso iremos considerar as variáveis *Pclass*, *Sex*, *Age*, *SibSp*, *Parch*, *Fare* e *Embarked*.
+
+```{r echo=FALSE}
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+```
+
+```{r}
+fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, data=train, method="class")
+fancyRpartPlot(fit)
+```
+
+**Criando modelo de predição a ser submetido**
+```{r}
+prediction <- predict(fit, test, type = "class")
+submit_final <- data.frame(PassengerId = test$PassengerId, Survived = prediction)
+write.csv(submit_final, file = "myfirstdtree.csv", row.names = FALSE)
+```
+
+**Resultado final do Kaggle**
+
+![alt text][id3]
+
+[id1]: allperished.png "Ninguém sobreviveu"
+[id2]: allwomensaved.png "Todas as mulheres sobreviveram"
+[id3]: decisiontree.png "Usando árvore de decisão com parâmetros especificados"
