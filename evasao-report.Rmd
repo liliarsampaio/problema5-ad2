@@ -1,0 +1,138 @@
+---
+title: "Evasão de alunos UFCG - Relatório"
+author: "Lilia Sampaio"
+date: "February 13, 2015"
+output: html_document
+---
+
+###Importando datasets reorganizados
+
+Para essa análise dois datasets foram fornecidos, um de treino chamado *dadosAlunos* e um de teste chamado *dadosTeste*. Considerando o problema de predizer quais alunos vao evadir os cursos de Computação e Engenharia Mecânica, e, ainda, que as análises devem ser feitas para os dois cursos em conjunto, e separadamente, os seguintes conjuntos de dados, de treino e teste, foram criados:  
+
+```{r}
+all_alunos <- read.csv("new_all_alunos.csv", sep=",")
+teste_all_alunos <- read.csv("t_new_all_alunos.csv", sep=",")
+
+comp_alunos <- read.csv("comp_all_alunos.csv", sep=",")
+teste_comp_alunos <- read.csv("comp_t_new_all_alunos.csv", sep=",")
+
+mec_alunos <- read.csv("mec_all_alunos.csv", sep=",")
+teste_mec_alunos <- read.csv("mec_t_new_all_alunos.csv", sep=",")
+```
+
+###Como os dados estão estruturados?
+
+Depois de considerar os atributos existentes, e pensar em quais seriam decisivos para a predição a ser realizada, os dados foram tratados para chegar a seguinte configuração de variáveis:
+
+```{r}
+str(all_alunos)
+```
+
+Numa análise superficial dos dados, mais especificamente da variável que queremos predizer para o nosso conjunto de teste (COD_EVASAO), temos que,
+
+```{r}
+table(all_alunos$COD_EVASAO)
+```
+
+sendo 0 = não evadiu, e 1 = evadiu, 342 alunos não evadiram enquanto 39 sim. É uma diferença considerável que já nos permite fazer suposições na nossa predição, como por exemplo considerar que nenhum aluno evadirá. No entanto, isso não é uma boa prática, pois nesse caso, é pior errar dizendo que o aluno vai evadir e ele não evadir de verdade, do que dizer que ele não vai evadir, e a evasão acontecer. Dessa forma, utilizaremos arvores de decisão para tentar predizer com maior acurácia e precisão.
+
+###Criando Árvore de Decisão
+
+```{r echo=FALSE}
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+library(ROCR)
+```
+
+###Alunos dos dois cursos
+
++ Considerando todos os atributos, temos que 
+
+```{r}
+tree_all_alunos <- rpart(COD_EVASAO ~ MEDIA + REPROVADO + REP_FALTA + TRANCOU + NUM_CURSADAS, data=all_alunos, method="class")
+summary(tree_all_alunos)
+```
+
+Se dermos uma olhada no campo referente à importancia das variaveis (Variable importance) teremos que a mais importante foi a MEDIA, seguida de REP_FALTA, TRANCOU, NUM_CURSADAS e REPROVADO.
+
+```{r, echo=FALSE}
+fancyRpartPlot(tree_all_alunos)
+```
+
++ Se ignorarmos os dados referentes a trancamento, que na teoria não pode acontecer no primeiro periodo (conjunto de dados considerado aqui), temos que
+
+```{r}
+tree_all_alunos <- rpart(COD_EVASAO ~ MEDIA + REPROVADO + REP_FALTA + NUM_CURSADAS, data=all_alunos, method="class")
+summary(tree_all_alunos)
+```
+
+ainda assim, a ordem de importancia das variaveis não mudou, assim como a arvore permanece a mesma, como vemos abaixo
+
+```{r, echo=FALSE}
+fancyRpartPlot(tree_all_alunos)
+```
+
+Calculando a predição, teremos que 3 pessoas evadirão.
+
+```{r}
+pred_all_alunos <- predict(tree_all_alunos, teste_all_alunos, type = "class")
+summary(pred_all_alunos)
+```
+```{r, echo=FALSE}
+sub_pred_all_alunos <- data.frame(MATRICULA = teste_all_alunos$MATRICULA, COD_EVASAO = pred_all_alunos)
+write.csv(sub_pred_all_alunos, file = "Lilia_Sampaio_CC_EM.csv", row.names = FALSE) 
+```
+
+###Alunos de Computação
+
++ Considerando todos os atributos, temos que 
+
+```{r}
+tree_comp_alunos <- rpart(COD_EVASAO ~ MEDIA + REPROVADO + REP_FALTA + TRANCOU + NUM_CURSADAS, data=comp_alunos, method="class")
+summary(tree_comp_alunos)
+```
+
+Também dando uma olhada no campo referente à importancia das variaveis (Variable importance) teremos ainda que a mais importante foi a MEDIA, seguida de REP_FALTA e TRANCOU. Ainda vemos que a arvore so tem o nó Média, sendo esse o mais decisivo para novamente para essa predição.
+
+```{r, echo=FALSE}
+fancyRpartPlot(tree_comp_alunos)
+```
+
+Calculando a predição, teremos que 2 pessoas evadirão.
+
+```{r}
+pred_comp_alunos <- predict(tree_comp_alunos, teste_comp_alunos, type = "class")
+summary(pred_comp_alunos)
+```
+```{r, echo=FALSE}
+sub_pred_comp_alunos <- data.frame(MATRICULA = teste_comp_alunos$MATRICULA, COD_EVASAO = pred_comp_alunos)
+write.csv(sub_pred_comp_alunos, file = "Lilia_Sampaio_CC.csv", row.names = FALSE) 
+```
+
+###Alunos de Engenharia Mecânica
+
++ Considerando todos os atributos, temos que 
+
+```{r}
+tree_mec_alunos <- rpart(COD_EVASAO ~ MEDIA + REPROVADO + REP_FALTA + TRANCOU + NUM_CURSADAS, data=mec_alunos, method="class")
+summary(tree_mec_alunos)
+```
+
+Dessa vez, olhando o campo referente à importancia das variaveis (Variable importance) teremos que, o campo mais importante ainda foi a MEDIA, mas agora seguida de TRANCOU, REP_FALTA e NUM_CURSADAS, diferentemente do considerado só para o curso de Computação, por exemplo. Ainda vemos que a arvore que, para Computação, so tinha o nó Média, agora possui o nó TRANCOU como significativo.
+
+```{r, echo=FALSE}
+fancyRpartPlot(tree_mec_alunos)
+```
+
+Finalmente, calculando a predição, teremos que 1 pessoa evadirá.
+
+```{r}
+pred_mec_alunos <- predict(tree_mec_alunos, teste_mec_alunos, type = "class")
+summary(pred_mec_alunos)
+```
+```{r, echo=FALSE}
+sub_pred_mec_alunos <- data.frame(MATRICULA = teste_mec_alunos$MATRICULA, COD_EVASAO = pred_mec_alunos)
+write.csv(sub_pred_mec_alunos, file = "Lilia_Sampaio_EM.csv", row.names = FALSE) 
+```
